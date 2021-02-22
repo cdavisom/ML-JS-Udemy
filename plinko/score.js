@@ -1,6 +1,6 @@
 const outputs = [];
 const predictionPoint = 300;
-const k = 3;
+//const k = 3;
 
 /* Ex Layout: [dropPosition, bounciness, ball size, bucket]
 const outputs = [
@@ -16,36 +16,47 @@ function onScoreUpdate(dropPosition, bounciness, size, bucketLabel) {
 }
 
 function runAnalysis() { 
-  const testSetSize = 10;
-  const [testSet, trainingSet] = splitDataset(outputs, 10);
+  const testSetSize = 100;
+  const k = 10
 
-  let numberCorrect = 0;
-  for (let i=0; i < testSet.length; i++){
-    const bucket = knn(trainingSet, testSet[i][0]);
-    if (bucket === testSet[i][3]) {
-      numberCorrect++;
-    }
-  }
+  _.range(0, 3).forEach(feature => {
+    const data = _.map(outputs, row => [row[feature], _.last(row)])
+    const [testSet, trainingSet] = splitDataset(minMax(data, 1), testSetSize);
+    const accuracy = _.chain(testSet)
+      .filter(testPoint => knn(trainingSet, _.initial(testPoint), k) === _.last(testPoint))
+      .size()
+      .divide(testSetSize)
+      .value();
 
-  console.log('Accuracy: ', numberCorrect / testSetSize)
+    console.log('For feature of', feature, 'Accuracy:', accuracy);
+  });
 }
 
-function knn(data, point) {
+function knn(data, point, k) {
   return _.chain(data)
-  .map(row => [distance(row[0], point), row[3]])
-  .sortBy(row => row[0])
-  .slice(0, k)
-  .countBy(row => row[1])
-  .toPairs()
-  .sortBy(row => row[1])
-  .last()
-  .first()
-  .parseInt()
-  .value();
+    .map(row => {
+      return [
+        distance(_.initial(row), point), 
+        _.last(row)
+        ]
+      })
+    .sortBy(row => row[0])
+    .slice(0, k)
+    .countBy(row => row[1])
+    .toPairs()
+    .sortBy(row => row[1])
+    .last()
+    .first()
+    .parseInt()
+    .value();
 }
 
 function distance(pointA, pointB) {
-	return Math.abs(pointA - pointB);
+  return _.chain(pointA)
+    .zip(pointB)
+    .map(([a, b]) => (a - b) ** 2)
+    .sum()
+    .value() ** 0.5;
 }
 
 function splitDataset(data, testCount) {
@@ -55,4 +66,17 @@ function splitDataset(data, testCount) {
   const trainingSet = _.slice(shuffled, testCount);
 
   return [testSet, trainingSet];
+}
+
+function minMax(data, featureCount) {
+  const clonedData = _.cloneDeep(data);
+
+  for (let i = 0; i < featureCount; i++) {
+    const column = clonedData.map(row => row[i]);
+    const min = _.min(column);
+    const max = _.max(column)
+    for (let j = 0; j < clonedData.length; j++) {
+      clonedData[j][i] = (clonedData[j][i] - min) / (max - min);
+    }
+  }
 }
